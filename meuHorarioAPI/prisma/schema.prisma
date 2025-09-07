@@ -1,0 +1,78 @@
+// schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum DiaDaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+}
+
+model Professor {
+  id               Int               @id @default(autoincrement())
+  nome             String
+  disciplinas      Disciplina[]
+  disponibilidades Disponibilidade[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model Disponibilidade {
+  id          Int        @id @default(autoincrement())
+  professorId Int
+  diaDaSemana DiaDaSemana
+  periodo     Int        // 1 a 9 (pode ser trocado por enum se preferir)
+  professor   Professor  @relation(fields: [professorId], references: [id])
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Turma {
+  id             Int          @id @default(autoincrement())
+  nome           String
+  disciplinas    Disciplina[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Disciplina {
+  id             Int          @id @default(autoincrement())
+  nome           String
+  cargaHoraria   Int
+  professorId    Int
+  turmaId        Int
+  professor      Professor    @relation(fields: [professorId], references: [id])
+  turma          Turma        @relation(fields: [turmaId], references: [id])
+  periodos       Periodo[]
+  horarios       Horario[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Periodo {
+  id             Int          @id @default(autoincrement())
+  diaDaSemana    DiaDaSemana
+  disciplinaId   Int
+  disciplina     Disciplina   @relation(fields: [disciplinaId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Horario {
+  id             Int          @id @default(autoincrement())
+  disciplinaId   Int
+  disciplina     Disciplina   @relation(fields: [disciplinaId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import Sidebar from "../components/sidebar";
-import Dashboard from "../components/Dashboard";
-import ProfessoresManager from "../components/ProfessoresManager";
-import DisciplinasManager from "../components/DisciplinasManager";
-import TurmasManager from "../components/TurmasManager";
-import HorariosManager from "../components/HorariosManager";
+import Sidebar from "@/components/sidebar";
+import Dashboard from "@/components/Dashboard";
+import ProfessoresManager from "@/components/ProfessoresManager";
+import DisciplinasManager from "@/components/DisciplinasManager";
+import TurmasManager from "@/components/TurmasManager";
+import HorariosManager from "@/components/HorariosManager";
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState("dashboard");

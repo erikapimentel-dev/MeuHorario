@@ -64,6 +64,7 @@ model Periodo {
   id             Int          @id @default(autoincrement())
   diaDaSemana    DiaDaSemana
   disciplinaId   Int
+  periodo        Int?
   disciplina     Disciplina   @relation(fields: [disciplinaId], references: [id])
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

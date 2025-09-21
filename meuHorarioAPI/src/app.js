@@ -12,7 +12,7 @@ const horarioRoutes = require('./routes/horarioRoutes');
 app.use(express.json());
 
 app.use(cors({
-  origin: 'http://localhost:5173', // Permite requisições do frontend
+  origin: 'http://localhost:8080', // Permite requisições do frontend
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Métodos permitidos
 }));
 

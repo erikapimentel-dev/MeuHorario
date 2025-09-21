@@ -15,7 +15,7 @@ import { useToast } from "../hooks/use-toast";
 // Importando os serviços necessários
 import { findDisciplinas, addDisciplina, updateDisciplina, deleteDisciplina } from "../services/disciplinaService.js";
 import { findProfessores } from "../services/professorService.js";
-import { findTurmas } from "../services/turmaService.js"; 
+import { findTurmas } from "../services/turmaService.js"; // Certifique-se que este serviço exista
 
 // Interfaces para tipagem dos dados que vêm da API
 interface Disciplina {

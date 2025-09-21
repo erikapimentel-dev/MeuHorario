@@ -1,14 +1,13 @@
+// meuHorarioAPI/src/models/disponibilidadeModel.js
 const prisma = require('../prisma');
-
 
 const getAllDisponibilidades = async () => {
   return await prisma.disponibilidade.findMany({
-    orderBy: {
-      diaDaSemana: 'asc'
-    },
-    orderBy: {
-      periodo: 'asc'
-    },
+    // CORREÇÃO: Combinar a ordenação em um array
+    orderBy: [
+      { diaDaSemana: 'asc' },
+      { periodo: 'asc' },
+    ],
   });
 }
 
@@ -17,15 +16,15 @@ const getDisponibilidadesByProfessorId = async (professorId) => {
     where: {
       professorId: professorId
     },
-    orderBy: {
-      diaDaSemana: 'asc'
-    },
-    orderBy: {
-      periodo: 'asc'
-    },
+    // CORREÇÃO: Combinar a ordenação em um array
+    orderBy: [
+      { diaDaSemana: 'asc' },
+      { periodo: 'asc' },
+    ],
   });
 }
 
+// O restante do arquivo está correto e não precisa de alterações
 const addDisponibilidade = async (professorId, diaDaSemana, periodo) => {
   return await prisma.disponibilidade.create({
     data: {
@@ -67,5 +66,3 @@ module.exports = {
   updateDisponibilidade,
   deleteDisponibilidade
 };
-
-

@@ -31,20 +31,13 @@ const getDisciplinaById = async (id) => {
 }
 
 const addDisciplina = async ({ nome, cargaHoraria, professorId, turmaId }) => {
-  // A transação garante que a disciplina e seus períodos sejam criados juntos
-  return await prisma.$transaction(async (tx) => {
-    // 1. Cria a disciplina primeiro
-    const novaDisciplina = await tx.disciplina.create({
-      data: {
-        nome,
-        cargaHoraria,
-        professor: { connect: { id: professorId } },
-        turma: { connect: { id: turmaId } }
-      }
-    });
-    await geradorHorarioService.alocarPeriodosParaDisciplina({ ...novaDisciplina, cargaHoraria, professorId, turmaId });
-
-    return novaDisciplina;
+  return await prisma.disciplina.create({
+    data: {
+      nome,
+      cargaHoraria,
+      professor: { connect: { id: professorId } },
+      turma: { connect: { id: turmaId } }
+    }
   });
 };
 

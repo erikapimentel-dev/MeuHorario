@@ -12,6 +12,7 @@ import { useToast } from "../hooks/use-toast";
 // Importando os serviços
 import { findTurmas } from "../services/turmaService.js";
 import { findDisciplinas } from "../services/disciplinaService.js";
+import { findDisponibilidadesByProfessor } from "../services/disponibilidadeService.js";
 
 // Interfaces de tipo
 interface HorarioItem {
@@ -60,6 +61,7 @@ const HorariosManager = () => {
     queryFn: findDisciplinas,
   });
   const disciplinas: Disciplina[] = disciplinasResponse?.data || [];
+  console.log(disciplinas)
 
   // Define a primeira turma como selecionada por padrão
   if (turmas.length > 0 && selectedTurmaId === null) {

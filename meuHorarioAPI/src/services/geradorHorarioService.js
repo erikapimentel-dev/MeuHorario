@@ -7,7 +7,7 @@ const alocarPeriodosParaDisciplina = async (disciplina, tx) => {
   const prismaClient = tx || prisma;
   const diasSemana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"];
 
-  // 1. Buscar dados necessários USANDO O CLIENTE CORRETO (prismaClient)
+  // CORREÇÃO: Usar 'prismaClient' em todas as consultas
   const disponibilidadesDoProfessor = await prismaClient.disponibilidade.findMany({
     where: { professorId: disciplina.professorId },
   });
@@ -20,7 +20,7 @@ const alocarPeriodosParaDisciplina = async (disciplina, tx) => {
     where: { disciplina: { turmaId: disciplina.turmaId } },
   });
 
-  // Transforma as listas em estruturas de busca rápida
+  // O restante da lógica permanece o mesmo...
   const mapaDisponibilidade = new Set(
     disponibilidadesDoProfessor.map(d => `${d.diaDaSemana}-${d.periodo}`)
   );
@@ -34,14 +34,12 @@ const alocarPeriodosParaDisciplina = async (disciplina, tx) => {
   const periodosParaCriar = [];
   let aulasAlocadas = 0;
 
-  // 2. Aplicar as regras para encontrar slots válidos
   for (const dia of diasSemana) {
     for (let periodo = 1; periodo <= 6; periodo++) {
       if (aulasAlocadas >= disciplina.cargaHoraria) break;
 
       const slot = `${dia}-${periodo}`;
 
-      // Regras de negócio
       const professorEstaDisponivel = mapaDisponibilidade.has(slot);
       const professorEstaLivre = !mapaOcupadoProfessor.has(slot);
       const turmaEstaLivre = !mapaOcupadoTurma.has(slot);
@@ -62,7 +60,6 @@ const alocarPeriodosParaDisciplina = async (disciplina, tx) => {
     if (aulasAlocadas >= disciplina.cargaHoraria) break;
   }
 
-  // 3. Salvar os períodos encontrados USANDO O CLIENTE CORRETO (prismaClient)
   if (periodosParaCriar.length > 0) {
     await prismaClient.periodo.createMany({
       data: periodosParaCriar,

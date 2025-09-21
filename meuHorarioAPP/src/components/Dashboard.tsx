@@ -1,43 +1,73 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+// meuHorarioAPP/src/components/Dashboard.tsx
+
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { Users, BookOpen, GraduationCap, Calendar, Plus } from "lucide-react";
+import { Skeleton } from "./ui/skeleton"; // Importando o componente de Skeleton
+
+// Importando todos os serviços necessários
+import { findProfessores } from "../services/professorService.js";
+import { findDisciplinas } from "../services/disciplinaService.js";
+import { findTurmas } from "../services/turmaService.js";
+import { findHorarios } from "../services/horarioService.js";
 
 interface DashboardProps {
   onSectionChange: (section: string) => void;
 }
 
 const Dashboard = ({ onSectionChange }: DashboardProps) => {
+  // 1. BUSCAR TODOS OS DADOS EM PARALELO
+  const { data: professoresResponse, isLoading: isLoadingProfessores } = useQuery({
+    queryKey: ['professores'],
+    queryFn: findProfessores,
+  });
+
+  const { data: disciplinasResponse, isLoading: isLoadingDisciplinas } = useQuery({
+    queryKey: ['disciplinas'],
+    queryFn: findDisciplinas,
+  });
+
+  const { data: turmasResponse, isLoading: isLoadingTurmas } = useQuery({
+    queryKey: ['turmas'],
+    queryFn: findTurmas,
+  });
+
+  const { data: horariosResponse, isLoading: isLoadingHorarios } = useQuery({
+    queryKey: ['horarios'],
+    queryFn: findHorarios,
+  });
+
+  const isLoading = isLoadingProfessores || isLoadingDisciplinas || isLoadingTurmas || isLoadingHorarios;
+
+  // 2. PREPARAR OS DADOS PARA OS CARDS
   const stats = [
     {
       title: "Professores",
-      value: "24",
+      value: professoresResponse?.data.length ?? 0,
       description: "Professores cadastrados",
       icon: Users,
-      color: "primary",
       section: "professores"
     },
     {
       title: "Disciplinas", 
-      value: "18",
+      value: disciplinasResponse?.data.length ?? 0,
       description: "Disciplinas ativas",
       icon: BookOpen,
-      color: "secondary",
       section: "disciplinas"
     },
     {
       title: "Turmas",
-      value: "12", 
+      value: turmasResponse?.data.length ?? 0, 
       description: "Turmas criadas",
       icon: GraduationCap,
-      color: "success",
       section: "turmas"
     },
     {
       title: "Horários",
-      value: "8",
+      value: horariosResponse?.data.length ?? 0,
       description: "Horários gerados",
       icon: Calendar,
-      color: "warning",
       section: "horarios"
     }
   ];
@@ -93,7 +123,11 @@ const Dashboard = ({ onSectionChange }: DashboardProps) => {
                 <IconComponent className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{stat.value}</div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-1/2" />
+                ) : (
+                  <div className="text-2xl font-bold text-primary">{stat.value}</div>
+                )}
                 <p className="text-xs text-muted-foreground">{stat.description}</p>
               </CardContent>
             </Card>

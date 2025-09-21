@@ -1,125 +1,162 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Plus, Edit, Trash2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+// meuHorarioAPP/src/components/DisciplinasManager.tsx
 
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Badge } from "./ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { BookOpen, Plus, Edit, Trash2 } from "lucide-react";
+import { useToast } from "../hooks/use-toast";
+
+// Importando os serviços necessários
+import { findDisciplinas, addDisciplina, updateDisciplina, deleteDisciplina } from "../services/disciplinaService.js";
+import { findProfessores } from "../services/professorService.js";
+import { findTurmas } from "../services/turmaService.js"; 
+
+// Interfaces para tipagem dos dados que vêm da API
 interface Disciplina {
   id: number;
   nome: string;
   cargaHoraria: number;
-  professor: string;
-  turmas: string[];
-  cor: string;
+  professor: { id: number; nome: string };
+  turma: { id: number; nome: string };
+}
+interface Professor {
+  id: number;
+  nome: string;
+}
+interface Turma {
+  id: number;
+  nome: string;
 }
 
 const DisciplinasManager = () => {
   const { toast } = useToast();
-  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([
-    { id: 1, nome: "Matemática", cargaHoraria: 5, professor: "Maria Silva", turmas: ["9A", "9B"], cor: "primary" },
-    { id: 2, nome: "Português", cargaHoraria: 4, professor: "Ana Costa", turmas: ["9A", "1ºA"], cor: "secondary" },
-    { id: 3, nome: "História", cargaHoraria: 3, professor: "João Santos", turmas: ["9A", "9B", "1ºA"], cor: "success" },
-    { id: 4, nome: "Física", cargaHoraria: 4, professor: "Maria Silva", turmas: ["1ºA", "2ºA"], cor: "warning" },
-    { id: 5, nome: "Química", cargaHoraria: 3, professor: "Carlos Oliveira", turmas: ["1ºA", "2ºA", "3ºA"], cor: "destructive" },
-    { id: 6, nome: "Biologia", cargaHoraria: 3, professor: "Carlos Oliveira", turmas: ["9A", "1ºA"], cor: "primary" },
-  ]);
+  const queryClient = useQueryClient();
 
-  const professoresDisponiveis = ["Maria Silva", "Ana Costa", "João Santos", "Carlos Oliveira"];
-  const turmasDisponiveis = ["9A", "9B", "1ºA", "1ºB", "2ºA", "2ºB", "3ºA", "3ºB"];
-  const cores = ["primary", "secondary", "success", "warning", "destructive"];
-
-  const [newDisciplina, setNewDisciplina] = useState({ 
-    nome: "", 
-    cargaHoraria: "", 
-    professor: "", 
-    turmas: [] as string[],
-    cor: "primary"
-  });
-  const [editingDisciplina, setEditingDisciplina] = useState<Disciplina | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDisciplina, setEditingDisciplina] = useState<Disciplina | null>(null);
 
-  const handleAddDisciplina = () => {
-    if (newDisciplina.nome && newDisciplina.cargaHoraria && newDisciplina.professor) {
-      const disciplina: Disciplina = {
-        id: Date.now(),
-        nome: newDisciplina.nome,
-        cargaHoraria: parseInt(newDisciplina.cargaHoraria),
-        professor: newDisciplina.professor,
-        turmas: newDisciplina.turmas,
-        cor: newDisciplina.cor
-      };
-      setDisciplinas([...disciplinas, disciplina]);
-      setNewDisciplina({ nome: "", cargaHoraria: "", professor: "", turmas: [], cor: "primary" });
-      setIsDialogOpen(false);
-      toast({
-        title: "Disciplina adicionada",
-        description: `${disciplina.nome} foi cadastrada com sucesso.`,
-      });
-    }
+  // Estado para o formulário
+  const [formData, setFormData] = useState({
+    nome: "",
+    cargaHoraria: "",
+    professorId: "",
+    turmaId: ""
+  });
+
+  // 1. BUSCAR DADOS (Read)
+  const { data: disciplinasResponse, isLoading: isLoadingDisciplinas } = useQuery({
+    queryKey: ['disciplinas'],
+    queryFn: findDisciplinas,
+  });
+  const disciplinas: Disciplina[] = disciplinasResponse?.data || [];
+
+  const { data: professoresResponse, isLoading: isLoadingProfessores } = useQuery({
+    queryKey: ['professores'],
+    queryFn: findProfessores,
+  });
+  const professores: Professor[] = professoresResponse?.data || [];
+
+  const { data: turmasResponse, isLoading: isLoadingTurmas } = useQuery({
+    queryKey: ['turmas'],
+    queryFn: findTurmas,
+  });
+  const turmas: Turma[] = turmasResponse?.data || [];
+
+  // Função para invalidar queries e recarregar os dados
+  const invalidateAndRefetch = () => {
+    queryClient.invalidateQueries({ queryKey: ['disciplinas'] });
   };
 
-  const handleEditDisciplina = (disciplina: Disciplina) => {
+  // 2. ADICIONAR (Create)
+  const addMutation = useMutation({
+    mutationFn: addDisciplina,
+    onSuccess: () => {
+      toast({ title: "Sucesso!", description: "Disciplina adicionada com sucesso." });
+      invalidateAndRefetch();
+      handleCloseDialog();
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: `Não foi possível adicionar a disciplina. ${err.message}`, variant: "destructive" });
+    },
+  });
+
+  // 3. ATUALIZAR (Update)
+  const updateMutation = useMutation({
+    mutationFn: (variables: { id: number; data: any }) => updateDisciplina(variables.id, variables.data),
+    onSuccess: () => {
+      toast({ title: "Sucesso!", description: "Disciplina atualizada com sucesso." });
+      invalidateAndRefetch();
+      handleCloseDialog();
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: `Não foi possível atualizar a disciplina. ${err.message}`, variant: "destructive" });
+    }
+  });
+
+  // 4. DELETAR (Delete)
+  const deleteMutation = useMutation({
+    mutationFn: deleteDisciplina,
+    onSuccess: () => {
+      toast({ title: "Sucesso!", description: "Disciplina removida com sucesso." });
+      invalidateAndRefetch();
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: `Não foi possível remover a disciplina. ${err.message}`, variant: "destructive" });
+    }
+  });
+
+  // --- Funções do Modal e Formulário ---
+
+  const handleOpenDialog = (disciplina: Disciplina | null) => {
     setEditingDisciplina(disciplina);
-    setNewDisciplina({
-      nome: disciplina.nome,
-      cargaHoraria: disciplina.cargaHoraria.toString(),
-      professor: disciplina.professor,
-      turmas: disciplina.turmas,
-      cor: disciplina.cor
-    });
+    if (disciplina) {
+      setFormData({
+        nome: disciplina.nome,
+        cargaHoraria: String(disciplina.cargaHoraria),
+        professorId: String(disciplina.professor.id),
+        turmaId: String(disciplina.turma.id)
+      });
+    } else {
+      setFormData({ nome: "", cargaHoraria: "", professorId: "", turmaId: "" });
+    }
     setIsDialogOpen(true);
   };
 
-  const handleUpdateDisciplina = () => {
-    if (editingDisciplina && newDisciplina.nome && newDisciplina.cargaHoraria && newDisciplina.professor) {
-      const updatedDisciplina: Disciplina = {
-        ...editingDisciplina,
-        nome: newDisciplina.nome,
-        cargaHoraria: parseInt(newDisciplina.cargaHoraria),
-        professor: newDisciplina.professor,
-        turmas: newDisciplina.turmas,
-        cor: newDisciplina.cor
-      };
-      setDisciplinas(disciplinas.map(d => d.id === editingDisciplina.id ? updatedDisciplina : d));
-      setEditingDisciplina(null);
-      setNewDisciplina({ nome: "", cargaHoraria: "", professor: "", turmas: [], cor: "primary" });
-      setIsDialogOpen(false);
-      toast({
-        title: "Disciplina atualizada",
-        description: `${updatedDisciplina.nome} foi atualizada com sucesso.`,
-      });
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setEditingDisciplina(null);
+  };
+
+  const handleSubmit = () => {
+    const payload = {
+      ...formData,
+      cargaHoraria: parseInt(formData.cargaHoraria, 10),
+      professorId: parseInt(formData.professorId, 10),
+      turmaId: parseInt(formData.turmaId, 10),
+    };
+
+    if (editingDisciplina) {
+      updateMutation.mutate({ id: editingDisciplina.id, data: payload });
+    } else {
+      addMutation.mutate(payload);
     }
   };
 
-  const handleDeleteDisciplina = (id: number) => {
-    const disciplina = disciplinas.find(d => d.id === id);
-    setDisciplinas(disciplinas.filter(d => d.id !== id));
-    toast({
-      title: "Disciplina removida",
-      description: `${disciplina?.nome} foi removida do sistema.`,
-      variant: "destructive",
-    });
+  const handleDelete = (id: number) => {
+    if (window.confirm("Tem certeza que deseja remover esta disciplina?")) {
+      deleteMutation.mutate(id);
+    }
   };
 
-  const resetDialog = () => {
-    setEditingDisciplina(null);
-    setNewDisciplina({ nome: "", cargaHoraria: "", professor: "", turmas: [], cor: "primary" });
-    setIsDialogOpen(false);
-  };
-
-  const handleTurmaToggle = (turma: string) => {
-    setNewDisciplina(prev => ({
-      ...prev,
-      turmas: prev.turmas.includes(turma) 
-        ? prev.turmas.filter(t => t !== turma)
-        : [...prev.turmas, turma]
-    }));
-  };
+  if (isLoadingDisciplinas || isLoadingProfessores || isLoadingTurmas) {
+    return <div>Carregando...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -128,104 +165,54 @@ const DisciplinasManager = () => {
           <h2 className="text-3xl font-bold text-primary">Disciplinas</h2>
           <p className="text-muted-foreground">Gerencie as disciplinas da escola</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          if (!open) resetDialog();
-          setIsDialogOpen(open);
-        }}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-secondary hover:opacity-90">
+            <Button className="bg-gradient-secondary hover:opacity-90" onClick={() => handleOpenDialog(null)}>
               <Plus className="mr-2 h-4 w-4" />
               Nova Disciplina
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>
-                {editingDisciplina ? "Editar Disciplina" : "Nova Disciplina"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingDisciplina 
-                  ? "Atualize as informações da disciplina."
-                  : "Adicione uma nova disciplina ao sistema."
-                }
-              </DialogDescription>
+              <DialogTitle>{editingDisciplina ? "Editar Disciplina" : "Nova Disciplina"}</DialogTitle>
+              <DialogDescription>Preencha as informações da disciplina.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="nome">Nome da Disciplina</Label>
-                <Input
-                  id="nome"
-                  value={newDisciplina.nome}
-                  onChange={(e) => setNewDisciplina({...newDisciplina, nome: e.target.value})}
-                  placeholder="Nome da disciplina"
-                />
+                <Input id="nome" value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
               </div>
               <div>
                 <Label htmlFor="cargaHoraria">Carga Horária Semanal</Label>
-                <Input
-                  id="cargaHoraria"
-                  type="number"
-                  value={newDisciplina.cargaHoraria}
-                  onChange={(e) => setNewDisciplina({...newDisciplina, cargaHoraria: e.target.value})}
-                  placeholder="Horas por semana"
-                />
+                <Input id="cargaHoraria" type="number" value={formData.cargaHoraria} onChange={(e) => setFormData({...formData, cargaHoraria: e.target.value})} />
               </div>
               <div>
                 <Label htmlFor="professor">Professor</Label>
-                <Select value={newDisciplina.professor} onValueChange={(value) => setNewDisciplina({...newDisciplina, professor: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um professor" />
-                  </SelectTrigger>
+                <Select value={formData.professorId} onValueChange={(value) => setFormData({...formData, professorId: value})}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um professor" /></SelectTrigger>
                   <SelectContent>
-                    {professoresDisponiveis.map((prof) => (
-                      <SelectItem key={prof} value={prof}>
-                        {prof}
-                      </SelectItem>
+                    {professores.map((prof) => (
+                      <SelectItem key={prof.id} value={String(prof.id)}>{prof.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Turmas</Label>
-                <div className="grid grid-cols-4 gap-2 mt-2">
-                  {turmasDisponiveis.map((turma) => (
-                    <Button
-                      key={turma}
-                      type="button"
-                      variant={newDisciplina.turmas.includes(turma) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleTurmaToggle(turma)}
-                    >
-                      {turma}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="cor">Cor</Label>
-                <Select value={newDisciplina.cor} onValueChange={(value) => setNewDisciplina({...newDisciplina, cor: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Label htmlFor="turma">Turma</Label>
+                <Select value={formData.turmaId} onValueChange={(value) => setFormData({...formData, turmaId: value})}>
+                  <SelectTrigger><SelectValue placeholder="Selecione uma turma" /></SelectTrigger>
                   <SelectContent>
-                    {cores.map((cor) => (
-                      <SelectItem key={cor} value={cor}>
-                        {cor}
-                      </SelectItem>
+                    {turmas.map((turma) => (
+                      <SelectItem key={turma.id} value={String(turma.id)}>{turma.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={resetDialog}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={editingDisciplina ? handleUpdateDisciplina : handleAddDisciplina}
-                className="bg-gradient-secondary hover:opacity-90"
-              >
-                {editingDisciplina ? "Atualizar" : "Adicionar"}
+              <Button variant="outline" onClick={handleCloseDialog}>Cancelar</Button>
+              <Button onClick={handleSubmit} disabled={addMutation.isPending || updateMutation.isPending}>
+                {editingDisciplina ? "Salvar Alterações" : "Adicionar"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -239,45 +226,17 @@ const DisciplinasManager = () => {
               <div className="flex items-center justify-between">
                 <BookOpen className="h-8 w-8 text-secondary" />
                 <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditDisciplina(disciplina)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteDisciplina(disciplina.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(disciplina)}><Edit className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(disciplina.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               </div>
               <CardTitle className="text-lg">{disciplina.nome}</CardTitle>
-              <CardDescription>
-                {disciplina.cargaHoraria}h/semana • {disciplina.professor}
-              </CardDescription>
+              <CardDescription>{disciplina.cargaHoraria}h/semana • {disciplina.professor.nome}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium">Turmas:</Label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {disciplina.turmas.map((turma, index) => (
-                      <Badge key={index} variant="outline">
-                        {turma}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Cor do tema:</Label>
-                  <Badge variant={disciplina.cor as any}>
-                    {disciplina.cor}
-                  </Badge>
-                </div>
+              <Label className="text-sm font-medium">Turma:</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <Badge variant="outline">{disciplina.turma.nome}</Badge>
               </div>
             </CardContent>
           </Card>

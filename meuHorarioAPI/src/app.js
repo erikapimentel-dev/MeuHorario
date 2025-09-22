@@ -5,7 +5,7 @@ const professorRoutes = require('./routes/professorRoutes');
 const disponibilidadeRoutes = require('./routes/disponibilidadeRoutes');
 const turmaRoutes = require('./routes/turmaRoutes');
 const disciplinaRoutes = require('./routes/disciplinaRoutes');
-const periodoRoutes = require('./routes/periodoRoutes');
+//const periodoRoutes = require('./routes/periodoRoutes');
 const horarioRoutes = require('./routes/horarioRoutes');
 
 
@@ -25,7 +25,7 @@ app.use('/api/professores', professorRoutes);
 app.use('/api/disponibilidades', disponibilidadeRoutes);
 app.use('/api/turmas', turmaRoutes);
 app.use('/api/disciplinas', disciplinaRoutes);
-app.use('/api/periodos', periodoRoutes);
+//app.use('/api/periodos', periodoRoutes);
 app.use('/api/horarios', horarioRoutes);
 
 

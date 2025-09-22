@@ -1,4 +1,4 @@
-// schema.prisma
+// schema.prisma (versão corrigida e recomendada)
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -18,6 +18,19 @@ enum DiaDaSemana {
   DOMINGO
 }
 
+// AJUSTE: Renomeei os valores do enum para serem válidos
+enum PeriodoAula {
+  P1
+  P2
+  P3
+  P4
+  P5
+  P6
+  P7
+  P8
+  P9
+}
+
 model Professor {
   id               Int               @id @default(autoincrement())
   nome             String
@@ -28,51 +41,44 @@ model Professor {
 }
 
 model Disponibilidade {
-  id          Int        @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   professorId Int
   diaDaSemana DiaDaSemana
-  periodo     Int        // 1 a 9 (pode ser trocado por enum se preferir)
-  professor   Professor  @relation(fields: [professorId], references: [id])
-
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  periodo     PeriodoAula // Agora usa o enum corrigido
+  professor   Professor   @relation(fields: [professorId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Turma {
-  id             Int          @id @default(autoincrement())
-  nome           String
-  disciplinas    Disciplina[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id          Int          @id @default(autoincrement())
+  nome        String
+  disciplinas Disciplina[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Disciplina {
-  id             Int          @id @default(autoincrement())
-  nome           String
-  cargaHoraria   Int
-  professorId    Int
-  turmaId        Int
-  professor      Professor    @relation(fields: [professorId], references: [id])
-  turma          Turma        @relation(fields: [turmaId], references: [id])
-  periodos       Periodo[]
-  horarios       Horario[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id           Int       @id @default(autoincrement())
+  nome         String
+  cargaHoraria Int
+  professorId  Int
+  turmaId      Int
+  professor    Professor @relation(fields: [professorId], references: [id])
+  turma        Turma     @relation(fields: [turmaId], references: [id])
+  // CORREÇÃO: Removi a linha "periodos" que sobrou do schema antigo
+  horarios     Horario[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
-model Periodo {
-  id             Int          @id @default(autoincrement())
-  diaDaSemana    DiaDaSemana
-  disciplinaId   Int
-  disciplina     Disciplina   @relation(fields: [disciplinaId], references: [id])
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
+// MUDANÇA: O antigo "Periodo" agora é "Horario"
 model Horario {
-  id             Int          @id @default(autoincrement())
-  disciplinaId   Int
-  disciplina     Disciplina   @relation(fields: [disciplinaId], references: [id])
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id           Int         @id @default(autoincrement())
+  disciplinaId Int
+  diaDaSemana  DiaDaSemana
+  periodo      PeriodoAula // Usa o enum corrigido
+  disciplina   Disciplina  @relation(fields: [disciplinaId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }

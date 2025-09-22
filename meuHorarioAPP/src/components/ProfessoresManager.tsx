@@ -23,7 +23,7 @@ interface Disponibilidade {
   id: number;
   professorId: number;
   diaDaSemana: string;
-  periodo: number;
+  periodo: string; 
 }
 
 // --- Componente da Grade de Disponibilidade (com as novas funcionalidades) ---
@@ -43,7 +43,8 @@ const AvailabilityGrid = ({ professor }: { professor: Professor }) => {
   const availabilityMap = useMemo(() => {
     const map = new Map<string, number>();
     disponibilidades.forEach(d => {
-      map.set(`${d.diaDaSemana}-${d.periodo}`, d.id);
+      const periodoNum = parseInt(d.periodo.replace('P', ''), 10);
+      map.set(`${d.diaDaSemana}-${periodoNum}`, d.id);
     });
     return map;
   }, [disponibilidades]);

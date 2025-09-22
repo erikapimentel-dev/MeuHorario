@@ -15,15 +15,14 @@ import { findDisciplinas } from "../services/disciplinaService.js";
 import { findDisponibilidadesByProfessor } from "../services/disponibilidadeService.js";
 
 // Interfaces de tipo
-interface HorarioItem {
-  disciplina: string;
-  professor: string;
-  turma: string;
+interface Horario {
+  diaDaSemana: string;
+  periodo: string; // ex: "P1", "P2"
 }
 
 type HorarioSemana = {
   [dia: string]: {
-    [periodo: string]: HorarioItem | null;
+    [periodo: string]: Horario | null;
   }
 };
 
@@ -32,7 +31,7 @@ interface Disciplina {
   nome: string;
   professor: { nome: string };
   turma: { id: number; nome: string };
-  periodos: { diaDaSemana: string }[];
+  horarios: Horario[]; 
 }
 
 interface Turma {
@@ -61,7 +60,6 @@ const HorariosManager = () => {
     queryFn: findDisciplinas,
   });
   const disciplinas: Disciplina[] = disciplinasResponse?.data || [];
-  console.log(disciplinas)
 
   // Define a primeira turma como selecionada por padrão
   if (turmas.length > 0 && selectedTurmaId === null) {
@@ -84,15 +82,18 @@ const HorariosManager = () => {
     
     // Filtra as disciplinas da turma selecionada
     const disciplinasDaTurma = disciplinas.filter(d => String(d.turma.id) === selectedTurmaId);
-    
+        
     // Preenche o horário
     disciplinasDaTurma.forEach(disciplina => {
-      disciplina.periodos.forEach(periodoInfo => {
-        const dia = periodoInfo.diaDaSemana;
-        // Encontra o primeiro período livre no dia para alocar a disciplina
-        const primeiroPeriodoLivre = periodos.find(p => !horarioVazio[dia][p]);
-        if (primeiroPeriodoLivre) {
-          horarioVazio[dia][primeiroPeriodoLivre] = {
+      // AJUSTE: Itera sobre 'horarios'
+      disciplina.horarios.forEach(horarioInfo => {
+        const dia = horarioInfo.diaDaSemana;
+        // AJUSTE: Converte o enum ("P1") para o formato de chave da tabela ("1º Período")
+        const periodoNum = parseInt(horarioInfo.periodo.replace('P', ''), 10);
+        const periodoKey = `${periodoNum}º Período`;
+        
+        if (horarioVazio[dia] && horarioVazio[dia][periodoKey] === null) {
+          horarioVazio[dia][periodoKey] = {
             disciplina: disciplina.nome,
             professor: disciplina.professor.nome,
             turma: disciplina.turma.nome,

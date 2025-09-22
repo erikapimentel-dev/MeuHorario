@@ -6,6 +6,8 @@ const {
   updateDisciplina,
   deleteDisciplina
 } = require('../models/disciplinaModel');
+const { alocarHorariosParaDisciplina } = require('../services/geradorHorarioService');
+
 
 const getAllDisciplinasHandler = async (req, res) => {
   try {
@@ -45,7 +47,13 @@ const addDisciplinaHandler = async (req, res) => {
         const turma = await prisma.turma.findUnique({ where: { id: parseInt(turmaId) } });
         if (!turma) return res.status(404).json({ error: "Turma não encontrada" });
 
+        // Primeiro, cria a disciplina no banco
         const novaDisciplina = await addDisciplina({ professorId: parseInt(professorId), turmaId: parseInt(turmaId), nome, cargaHoraria });
+
+        // 2. A MÁGICA ACONTECE AQUI!
+        // Após criar, chamamos nosso serviço para alocar os horários para essa nova disciplina.
+        await alocarHorariosParaDisciplina(novaDisciplina);
+        
         return res.status(201).json(novaDisciplina);
     } catch (error) {
         console.error(error);

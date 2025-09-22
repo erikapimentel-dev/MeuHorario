@@ -20,11 +20,10 @@ const getDisponibilidadesByProfessorIdHandler = async (req, res) => {
 }
 
 const addDisponibilidadeHandler = async (req, res) => {
-  const professorId = parseInt(req.body.professorId);
-  const diaDaSemana = req.body.diaDaSemana;
-  const periodo = req.body.periodo;
+  const { professorId, diaDaSemana, periodo } = req.body;
   try {
-    const novaDisponibilidade = await addDisponibilidade(professorId, diaDaSemana, periodo);
+    const periodoEnum = `P${periodo}`; // Converte número para enum
+    const novaDisponibilidade = await addDisponibilidade(professorId, diaDaSemana, periodoEnum);
     res.status(201).json(novaDisponibilidade);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao adicionar disponibilidade' });
@@ -32,15 +31,15 @@ const addDisponibilidadeHandler = async (req, res) => {
 }
 
 const updateDisponibilidadeHandler = async (req, res) => {
-  const id = parseInt(req.params.id);
-  const diaDaSemana = req.body.diaDaSemana;
-  const periodo = req.body.periodo;
-  try {
-    const disponibilidadeAtualizada = await updateDisponibilidade(id, diaDaSemana, periodo);
-    res.status(200).json(disponibilidadeAtualizada);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar disponibilidade' });
-  }
+    const id = parseInt(req.params.id);
+    const { diaDaSemana, periodo } = req.body;
+    try {
+        const periodoEnum = `P${periodo}`; // Converte número para enum
+        const disponibilidadeAtualizada = await updateDisponibilidade(id, diaDaSemana, periodoEnum);
+        res.status(200).json(disponibilidadeAtualizada);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao atualizar disponibilidade' });
+    }
 }
 
 const deleteDisponibilidadeHandler = async (req, res) => {
@@ -55,7 +54,6 @@ const deleteDisponibilidadeHandler = async (req, res) => {
         res.status(500).json({ error: error.message || "Erro ao deletar disponibilidade" });
     }
 }
-
 module.exports = {
   getAllDisponibilidadesHandler,
   getDisponibilidadesByProfessorIdHandler,

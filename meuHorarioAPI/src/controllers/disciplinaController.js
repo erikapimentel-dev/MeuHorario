@@ -1,10 +1,13 @@
+// meuHorarioAPI/src/controllers/disciplinaController.js
+
 const prisma = require('../prisma');
 const {
   getAlldisciplinas,
   getDisciplinaById,
   addDisciplina,
   updateDisciplina,
-  deleteDisciplina
+  deleteDisciplina,
+  createDisciplinaWithAllocation
 } = require('../models/disciplinaModel');
 const { alocarHorariosParaDisciplina } = require('../services/geradorHorarioService');
 
@@ -42,19 +45,21 @@ const addDisciplinaHandler = async (req, res) => {
             return res.status(400).json({ error: "Campos inválidos. Informe nome, professorId, turmaId e cargaHoraria." });
         }
 
-        const professor = await prisma.professor.findUnique({ where: { id: parseInt(professorId) } });
+        // validações rápidas
+        const professor = await prisma.professor.findUnique({ where: { id: professorId } });
         if (!professor) return res.status(404).json({ error: "Professor não encontrado" });
-        const turma = await prisma.turma.findUnique({ where: { id: parseInt(turmaId) } });
+        const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
         if (!turma) return res.status(404).json({ error: "Turma não encontrada" });
 
-        // Primeiro, cria a disciplina no banco
-        const novaDisciplina = await addDisciplina({ professorId: parseInt(professorId), turmaId: parseInt(turmaId), nome, cargaHoraria });
+        // chama a função atômica que cria e aloca (uma única vez)
+        const { disciplina, alocacao } = await createDisciplinaWithAllocation({
+            nome, cargaHoraria, professorId, turmaId
+        });
 
-        // 2. A MÁGICA ACONTECE AQUI!
-        // Após criar, chamamos nosso serviço para alocar os horários para essa nova disciplina.
-        await alocarHorariosParaDisciplina(novaDisciplina);
-        
-        return res.status(201).json(novaDisciplina);
+        return res.status(201).json({
+            disciplina,
+            alocacao
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Erro ao adicionar disciplina' });

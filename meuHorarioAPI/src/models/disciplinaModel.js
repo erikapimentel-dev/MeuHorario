@@ -1,6 +1,8 @@
 // meuHorarioAPI/src/models/disciplinaModel.js
 
 const prisma = require('../prisma');
+const { alocarHorariosParaDisciplina } = require('../services/geradorHorarioService');
+
 
 // ... (as funções 'getAlldisciplinas', 'getDisciplinaById', 'addDisciplina' e 'updateDisciplina' continuam exatamente as mesmas)
 const getAlldisciplinas = async () => {
@@ -37,6 +39,20 @@ const addDisciplina = async ({ nome, cargaHoraria, professorId, turmaId }) => {
       professor: { connect: { id: professorId } },
       turma: { connect: { id: turmaId } }
     }
+  });
+};
+
+const createDisciplinaWithAllocation = async ({ nome, cargaHoraria, professorId, turmaId }) => {
+  return prisma.$transaction(async (tx) => {
+    const nova = await tx.disciplina.create({
+      data: { nome, cargaHoraria, professorId, turmaId }
+    });
+
+    // chama a alocação passando o tx para que os inserts de horario participem da mesma transação
+    const alocResult = await alocarHorariosParaDisciplina(nova, tx);
+
+    // opcional — você pode gravar o resultado da alocação em uma tabela de log, se quiser
+    return { disciplina: nova, alocacao: alocResult };
   });
 };
 
@@ -81,5 +97,6 @@ module.exports = {
   getDisciplinaById,
   addDisciplina,
   updateDisciplina,
-  deleteDisciplina // A função agora está correta
+  deleteDisciplina, 
+  createDisciplinaWithAllocation// A função agora está correta
 };

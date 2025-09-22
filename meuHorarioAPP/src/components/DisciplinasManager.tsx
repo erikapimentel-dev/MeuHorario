@@ -1,5 +1,3 @@
-// meuHorarioAPP/src/components/DisciplinasManager.tsx
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -11,82 +9,91 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { BookOpen, Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
-
-// Importando os serviços necessários
+import { ToastAction } from "./ui/toast";
 import { findDisciplinas, addDisciplina, updateDisciplina, deleteDisciplina } from "../services/disciplinaService.js";
 import { findProfessores } from "../services/professorService.js";
-import { findTurmas } from "../services/turmaService.js"; // Certifique-se que este serviço exista
+import { findTurmas } from "../services/turmaService.js";
 
-// Interfaces para tipagem dos dados que vêm da API
-interface Disciplina {
-  id: number;
-  nome: string;
-  cargaHoraria: number;
-  professor: { id: number; nome: string };
-  turma: { id: number; nome: string };
-}
-interface Professor {
-  id: number;
-  nome: string;
-}
-interface Turma {
-  id: number;
-  nome: string;
+// Interfaces
+interface Disciplina { id: number; nome: string; cargaHoraria: number; professor: { id: number; nome: string }; turma: { id: number; nome: string }; }
+interface Professor { id: number; nome: string; }
+interface Turma { id: number; nome: string; }
+interface DisciplinasManagerProps {
+  onNavigateToProfessor: (professorId: number) => void;
 }
 
-const DisciplinasManager = () => {
+const DisciplinasManager = ({ onNavigateToProfessor }: DisciplinasManagerProps) => { // CORREÇÃO: Adicionado '=>'
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDisciplina, setEditingDisciplina] = useState<Disciplina | null>(null);
+  const [formData, setFormData] = useState({ nome: "", cargaHoraria: "", professorId: "", turmaId: "" });
 
-  // Estado para o formulário
-  const [formData, setFormData] = useState({
-    nome: "",
-    cargaHoraria: "",
-    professorId: "",
-    turmaId: ""
-  });
-
-  // 1. BUSCAR DADOS (Read)
-  const { data: disciplinasResponse, isLoading: isLoadingDisciplinas } = useQuery({
-    queryKey: ['disciplinas'],
-    queryFn: findDisciplinas,
-  });
+  const { data: disciplinasResponse, isLoading: isLoadingDisciplinas } = useQuery({ queryKey: ['disciplinas'], queryFn: findDisciplinas });
   const disciplinas: Disciplina[] = disciplinasResponse?.data || [];
-
-  const { data: professoresResponse, isLoading: isLoadingProfessores } = useQuery({
-    queryKey: ['professores'],
-    queryFn: findProfessores,
-  });
+  const { data: professoresResponse, isLoading: isLoadingProfessores } = useQuery({ queryKey: ['professores'], queryFn: findProfessores });
   const professores: Professor[] = professoresResponse?.data || [];
-
-  const { data: turmasResponse, isLoading: isLoadingTurmas } = useQuery({
-    queryKey: ['turmas'],
-    queryFn: findTurmas,
-  });
+  const { data: turmasResponse, isLoading: isLoadingTurmas } = useQuery({ queryKey: ['turmas'], queryFn: findTurmas });
   const turmas: Turma[] = turmasResponse?.data || [];
 
-  // Função para invalidar queries e recarregar os dados
   const invalidateAndRefetch = () => {
     queryClient.invalidateQueries({ queryKey: ['disciplinas'] });
+    queryClient.invalidateQueries({ queryKey: ['horarios'] });
   };
 
-  // 2. ADICIONAR (Create)
   const addMutation = useMutation({
     mutationFn: addDisciplina,
-    onSuccess: () => {
-      toast({ title: "Sucesso!", description: "Disciplina adicionada com sucesso." });
+    onSuccess: (response) => {
+      const { disciplina, alocacao } = response.data;
       invalidateAndRefetch();
-      handleCloseDialog();
+
+      if (alocacao.sucesso) {
+        toast({
+          title: "Sucesso!",
+          description: `Disciplina "${disciplina.nome}" criada e alocada com sucesso.`,
+        });
+        handleCloseDialog();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Atenção: Conflito de Horário!",
+          description: `Não foi possível alocar as ${alocacao.solicitadas} aulas de "${disciplina.nome}". Aulas alocadas: ${alocacao.alocadas}.`,
+          duration: 15000,
+          action: (
+            <div className="flex flex-col gap-2 mt-2">
+              <ToastAction 
+                altText="Ajustar Disponibilidade" 
+                onClick={() => {
+                  onNavigateToProfessor(parseInt(formData.professorId)); // Usa o ID do formulário
+                  handleCloseDialog();
+                }}
+              >
+                Ajustar Disponibilidade
+              </ToastAction>
+              <ToastAction 
+                altText="Editar Disciplina"
+                onClick={() => {
+                   // A disciplina ainda não está no cache, então usamos os dados do form
+                   setEditingDisciplina({ 
+                       id: disciplina.id, // O ID vem da resposta da API
+                       ...disciplina 
+                    });
+                   setIsDialogOpen(true); // Mantém ou reabre o modal
+                }}
+              >
+                Editar Disciplina
+              </ToastAction>
+            </div>
+          ),
+        });
+      }
     },
     onError: (err: any) => {
       toast({ title: "Erro", description: `Não foi possível adicionar a disciplina. ${err.message}`, variant: "destructive" });
     },
   });
 
-  // 3. ATUALIZAR (Update)
   const updateMutation = useMutation({
     mutationFn: (variables: { id: number; data: any }) => updateDisciplina(variables.id, variables.data),
     onSuccess: () => {
@@ -99,7 +106,6 @@ const DisciplinasManager = () => {
     }
   });
 
-  // 4. DELETAR (Delete)
   const deleteMutation = useMutation({
     mutationFn: deleteDisciplina,
     onSuccess: () => {
@@ -111,7 +117,6 @@ const DisciplinasManager = () => {
     }
   });
 
-  // --- Funções do Modal e Formulário ---
 
   const handleOpenDialog = (disciplina: Disciplina | null) => {
     setEditingDisciplina(disciplina);

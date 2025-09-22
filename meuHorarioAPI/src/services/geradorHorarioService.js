@@ -1,113 +1,111 @@
 // meuHorarioAPI/src/services/geradorHorarioService.js
-
 const prisma = require('../prisma');
 
+const NOMES_PROFESSORES_PRIORITARIOS = ['eletiva', 'clube'];
+
 const alocarHorariosParaDisciplina = async (disciplina, tx) => {
-  const prismaClient = tx || prisma;
-  const diasSemana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"];
-  const LIMITE_AULAS_SEGUIDAS = 3; // Nova regra de negócio
+    const prismaClient = tx || prisma;
 
-  // Busca todos os dados necessários no início
-  const disponibilidadesDoProfessor = await prismaClient.disponibilidade.findMany({
-    where: { professorId: disciplina.professorId },
-  });
-  const horariosJaOcupadosPeloProfessor = await prismaClient.horario.findMany({
-    where: { disciplina: { professorId: disciplina.professorId } },
-  });
-  const horariosJaOcupadosPelaTurma = await prismaClient.horario.findMany({
-    where: { disciplina: { turmaId: disciplina.turmaId } },
-  });
-
-  // Cria mapas para consulta rápida
-  const mapaDisponibilidade = new Set(
-    disponibilidadesDoProfessor.map(d => `${d.diaDaSemana}-${d.periodo}`)
-  );
-  const mapaOcupadoProfessor = new Set(
-    horariosJaOcupadosPeloProfessor.map(h => `${h.diaDaSemana}-${h.periodo}`)
-  );
-  const mapaOcupadoTurma = new Set(
-    horariosJaOcupadosPelaTurma.map(h => `${h.diaDaSemana}-${h.periodo}`)
-  );
-
-  const horariosParaCriar = [];
-  let aulasAlocadas = 0;
-
-  // Função auxiliar para verificar a nova regra de negócio
-  const verificaLimiteDeAulasSeguidas = (dia, periodoNum) => {
-    let aulasConsecutivas = 0;
-    // Olha para trás nos períodos anteriores do mesmo dia
-    for (let i = 1; i <= LIMITE_AULAS_SEGUIDAS; i++) {
-      const periodoAnterior = `P${periodoNum - i}`;
-      const slotAnterior = `${dia}-${periodoAnterior}`;
-      
-      // Verifica tanto os horários já existentes quanto os que estamos alocando agora
-      if (mapaOcupadoProfessor.has(slotAnterior) || horariosParaCriar.some(h => h.diaDaSemana === dia && h.periodo === periodoAnterior)) {
-        aulasConsecutivas++;
-      } else {
-        // Se houver uma falha na sequência, para a contagem
-        break;
-      }
+    // --- GARANTIA: se já existe horário para a disciplina, não alocar de novo ---
+    const existentes = await prismaClient.horario.findMany({ where: { disciplinaId: disciplina.id } });
+    if (existentes.length > 0) {
+        return { sucesso: false, mensagem: 'Disciplina já possui horários alocados', solicitadas: disciplina.cargaHoraria, alocadas: existentes.length };
     }
-    return aulasConsecutivas < LIMITE_AULAS_SEGUIDAS;
-  };
 
-  // Lógica de "duas passagens" que já tínhamos
-  // Passagem 1: Respeitando a disponibilidade
-  for (const dia of diasSemana) {
-    for (let periodoNum = 1; periodoNum <= 9; periodoNum++) {
-      if (aulasAlocadas >= disciplina.cargaHoraria) break;
-      const periodoEnum = `P${periodoNum}`;
-      const slot = `${dia}-${periodoEnum}`;
-
-      const professorEstaDisponivel = mapaDisponibilidade.has(slot);
-      const professorEstaLivre = !mapaOcupadoProfessor.has(slot);
-      const turmaEstaLivre = !mapaOcupadoTurma.has(slot);
-
-      if (professorEstaDisponivel && professorEstaLivre && turmaEstaLivre) {
-        // ***** NOVA VERIFICAÇÃO *****
-        if (verificaLimiteDeAulasSeguidas(dia, periodoNum)) {
-          horariosParaCriar.push({ disciplinaId: disciplina.id, diaDaSemana: dia, periodo: periodoEnum });
-          mapaOcupadoProfessor.add(slot); // Adicionamos ao mapa para que a próxima iteração considere este slot
-          aulasAlocadas++;
-        }
-      }
-    }
-    if (aulasAlocadas >= disciplina.cargaHoraria) break;
-  }
-
-  // Passagem 2: Ignorando a disponibilidade se necessário
-  if (aulasAlocadas < disciplina.cargaHoraria) {
-    for (const dia of diasSemana) {
-      for (let periodoNum = 1; periodoNum <= 9; periodoNum++) {
-        if (aulasAlocadas >= disciplina.cargaHoraria) break;
-        const periodoEnum = `P${periodoNum}`;
-        const slot = `${dia}-${periodoEnum}`;
-
-        const professorEstaLivre = !mapaOcupadoProfessor.has(slot);
-        const turmaEstaLivre = !mapaOcupadoTurma.has(slot);
-
-        if (professorEstaLivre && turmaEstaLivre) {
-          // ***** NOVA VERIFICAÇÃO (também aplicada aqui) *****
-          if (verificaLimiteDeAulasSeguidas(dia, periodoNum)) {
-            horariosParaCriar.push({ disciplinaId: disciplina.id, diaDaSemana: dia, periodo: periodoEnum });
-            mapaOcupadoProfessor.add(slot);
-            aulasAlocadas++;
-          }
-        }
-      }
-      if (aulasAlocadas >= disciplina.cargaHoraria) break;
-    }
-  }
-
-  if (horariosParaCriar.length > 0) {
-    await prismaClient.horario.createMany({
-      data: horariosParaCriar,
+    const disciplinaCompleta = await prismaClient.disciplina.findUnique({
+        where: { id: disciplina.id },
+        include: { professor: true },
     });
-  }
-  
-  return aulasAlocadas === disciplina.cargaHoraria;
+
+    if (!disciplinaCompleta) {
+        console.error(`Disciplina com ID ${disciplina.id} não encontrada.`); 
+        return { sucesso: false, solicitadas: disciplina.cargaHoraria, alocadas: 0 };
+    }
+
+    const nomeProfessor = (disciplinaCompleta.professor?.nome || '').toLowerCase();
+    const isProfessorPrioritario = NOMES_PROFESSORES_PRIORITARIOS.some(nome => nomeProfessor.includes(nome));
+
+    if (isProfessorPrioritario) {
+        const disponibilidades = await prismaClient.disponibilidade.findMany({ where: { professorId: disciplina.professorId } });
+        if (disponibilidades.length === 0) {
+            return { sucesso: false, solicitadas: disciplina.cargaHoraria, alocadas: 0 };
+        }
+        const horariosParaCriar = disponibilidades.slice(0, disciplina.cargaHoraria).map(disp => ({
+            disciplinaId: disciplina.id,
+            diaDaSemana: disp.diaDaSemana,
+            periodo: disp.periodo
+        }));
+        if (horariosParaCriar.length > 0) {
+            await prismaClient.horario.createMany({ data: horariosParaCriar });
+        }
+        return { sucesso: true, solicitadas: disciplina.cargaHoraria, alocadas: horariosParaCriar.length };
+    }
+
+    // lógica normal (mantive sua implementação)
+    const diasSemana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"];
+    const LIMITE_AULAS_SEGUIDAS = 3;
+
+    const professoresPrioritarios = await prismaClient.professor.findMany({ where: { OR: NOMES_PROFESSORES_PRIORITARIOS.map(nome => ({ nome: { contains: nome, mode: 'insensitive' } })) } });
+    const idsProfessoresPrioritarios = professoresPrioritarios.map(p => p.id);
+    const disponibilidadesReservadas = await prismaClient.disponibilidade.findMany({ where: { professorId: { in: idsProfessoresPrioritarios } } });
+    
+    const horariosJaOcupadosPeloProfessor = await prismaClient.horario.findMany({ where: { disciplina: { professorId: disciplina.professorId } } });
+    const horariosJaOcupadosPelaTurma = await prismaClient.horario.findMany({ where: { disciplina: { turmaId: disciplina.turmaId } } });
+
+    const mapaSlotsBloqueados = new Set([
+        ...disponibilidadesReservadas.map(d => `${d.diaDaSemana}-${d.periodo}`),
+        ...horariosJaOcupadosPeloProfessor.map(h => `${h.diaDaSemana}-${h.periodo}`),
+        ...horariosJaOcupadosPelaTurma.map(h => `${h.diaDaSemana}-${h.periodo}`)
+    ]);
+
+    const disponibilidadesDoProfessor = await prismaClient.disponibilidade.findMany({ where: { professorId: disciplina.professorId } });
+    const mapaDisponibilidade = new Set(disponibilidadesDoProfessor.map(d => `${d.diaDaSemana}-${d.periodo}`));
+    
+    const slotsCandidatos = [];
+    for (const dia of diasSemana) {
+        let aulasConsecutivas = 0;
+        for (let periodoNum = 1; periodoNum <= 9; periodoNum++) {
+            const periodoEnum = `P${periodoNum}`;
+            const slot = `${dia}-${periodoEnum}`;
+
+            if (mapaSlotsBloqueados.has(slot) || !mapaDisponibilidade.has(slot)) {
+                aulasConsecutivas = 0;
+                continue;
+            }
+
+            if (aulasConsecutivas >= LIMITE_AULAS_SEGUIDAS) {
+                continue;
+            }
+            
+            slotsCandidatos.push({ diaDaSemana: dia, periodo: periodoEnum });
+            aulasConsecutivas++;
+        }
+    }
+
+    const horariosParaCriar = slotsCandidatos
+        .slice(0, disciplina.cargaHoraria)
+        .map(slot => ({
+            disciplinaId: disciplina.id,
+            diaDaSemana: slot.diaDaSemana,
+            periodo: slot.periodo
+        }));
+
+    if (horariosParaCriar.length > 0) {
+        await prismaClient.horario.createMany({ data: horariosParaCriar });
+    }
+
+    const aulasAlocadas = horariosParaCriar.length;
+    if (aulasAlocadas < disciplina.cargaHoraria) {
+        console.warn(`Atenção: A disciplina "${disciplina.nome}" pedia ${disciplina.cargaHoraria} aulas, mas apenas ${aulasAlocadas} puderam ser alocadas.`);
+    }
+
+    return {
+        sucesso: aulasAlocadas === disciplina.cargaHoraria,
+        solicitadas: disciplina.cargaHoraria,
+        alocadas: aulasAlocadas,
+    };
 };
 
 module.exports = {
-  alocarHorariosParaDisciplina,
+    alocarHorariosParaDisciplina,
 };
